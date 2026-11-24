@@ -147,7 +147,9 @@ test('retry classification', () => {
   assert.strictEqual(r(500, {}, '{"error":"x","rows_written":10}').action, 'fail');
   assert.strictEqual(r(413).action, 'split');
   assert.strictEqual(r(401).action, 'auth');
-  assert.strictEqual(r(403).action, 'auth');
+  assert.strictEqual(r(403, {}, '{"success":false,"error":"Permission denied: write required"}').action, 'auth');
+  assert.strictEqual(r(403, {}, '{"error":"access denied: no write permission for plant.boiler"}').action, 'fail');
+  assert.strictEqual(r(403).action, 'fail');
   assert.strictEqual(r(502).action, 'fail');
   assert.strictEqual(r(504).action, 'fail');
   const net = (code, bodySent) => classify({ error: Object.assign(new Error(code), { code, bodySent }) });

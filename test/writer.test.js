@@ -107,7 +107,7 @@ test('401 pauses and resumes after the auth probe succeeds', async () => {
 test('403 pauses the batch until the auth probe confirms write access', async () => {
   let canWrite = false;
   const { writer, posts, send } = setup({ authProbeMs: 25, authProbe: async () => canWrite }, () => (
-    canWrite ? ok() : { status: 403, headers: {}, body: Buffer.alloc(0) }
+    canWrite ? ok() : { status: 403, headers: {}, body: Buffer.from('{"success":false,"error":"Permission denied: write required"}') }
   ));
   const p = send({ a: 1 });
   await new Promise((r) => setTimeout(r, 80));
@@ -116,6 +116,17 @@ test('403 pauses the batch until the auth probe confirms write access', async ()
   canWrite = true;
   assert.strictEqual(await p, null);
   assert.strictEqual(posts.length, 2);
+  await writer.close(100);
+});
+
+test('an RBAC 403 for one measurement fails that batch and does not pause the writer', async () => {
+  const { writer, posts, send } = setup({ authProbeMs: 25, authProbe: async () => true }, () => (
+    { status: 403, headers: {}, body: Buffer.from('{"error":"access denied: no write permission for plant.boiler"}') }
+  ));
+  const err = await Promise.race([send({ a: 1 }), new Promise((r) => setTimeout(() => r(new Error('still pending: the writer paused')), 1000))]);
+  assert.match(err.message, /access denied/);
+  assert.strictEqual(writer.paused, false);
+  assert.strictEqual(posts.length, 1, 'the refused batch is not resent');
   await writer.close(100);
 });
 
